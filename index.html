@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Един мой работен ден</title>
+<!--
+  ЕДИН МОЙ РАБОТЕН ДЕН — игра за проектор, 1. клас
+
+  Настройки: виж обекта CONFIG в началото на скрипта най-долу (имена, предмети,
+  изречение за „развален телефон“, твърдения за „вярно или грешно“, събития).
+
+  Снимки за „Какво има в чантата ми?“: сложи файловете в същата папка като този
+  файл и напиши  img: "laptop.jpg"  вместо  emoji: "💻".
+
+  Клавиши за водещия:
+    1–6            хвърляне на зара (числото, което се е паднало)
+    Enter / Space  натиска големия бутон на екрана
+    Esc            връща към пътеката (мисията остава неизпълнена)
+    T              телепорт до следващата мисия (ако времето не стига)
+    F              цял екран
+-->
+<style>
+:root{
+  --ink:#1F2A44; --paper:#FFFFFF; --page:#EAF4FF; --soft:#EEF3FA; --line:#D6E2F0;
+  --am:#CFEBFF; --noon:#FFF3C4; --pm:#FFD2A8; --eve:#CDBDF2;
+  --sun:#FFD23F; --mint:#3DD598; --green:#1E9E6A; --coral:#FF6B6B; --red:#E04848; --muted:#6B7590;
+  --field:min(9.6vw,13vh);
+  --radius:22px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  font-family:"Trebuchet MS","Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+  background:var(--page);color:var(--ink);line-height:1.25;overflow:hidden;
+}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;touch-action:manipulation}
+button:focus-visible,[tabindex]:focus-visible{outline:4px solid var(--sun);outline-offset:3px}
+.hidden{display:none !important}
+h1,h2,h3{font-weight:800;letter-spacing:-.01em;margin:0}
+
+/* ---------- заглавен екран ---------- */
+#title{
+  position:fixed;inset:0;z-index:30;display:grid;place-items:center;text-align:center;
+  background:linear-gradient(180deg,var(--am) 0%,var(--noon) 100%);padding:4vh 4vw;
+}
+#title .sun{font-size:clamp(60px,14vh,160px);line-height:1}
+#title h1{font-size:clamp(34px,8vh,96px);margin:1vh 0}
+#title .with{font-size:clamp(20px,4vh,46px);font-weight:700}
+#title .job{font-size:clamp(18px,3.2vh,36px);color:var(--muted);margin:1vh 0 3vh;max-width:40ch}
+#title .cap{font-size:clamp(18px,3.2vh,36px);background:var(--paper);display:inline-block;padding:1vh 2.5vw;border-radius:999px;border:4px solid var(--sun);margin-bottom:4vh}
+
+/* ---------- пътека ---------- */
+#board{height:100%;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;justify-content:space-between;padding:1.4vh 2.5vw;gap:2vw}
+.top h1{font-size:clamp(22px,3.6vh,44px)}
+.captain{font-size:clamp(16px,2.6vh,30px);font-weight:700;background:var(--paper);padding:.6vh 1.6vw;border-radius:999px;border:3px solid var(--sun);white-space:nowrap}
+.ops{display:flex;gap:.8vw;align-items:center;color:var(--muted);font-size:clamp(14px,2.2vh,22px);font-variant-numeric:tabular-nums}
+.ops .timer{min-width:5ch;text-align:right;font-weight:700}
+.ops .timer.late{color:var(--red)}
+.ops button{width:clamp(34px,4.6vh,50px);height:clamp(34px,4.6vh,50px);border-radius:50%;background:var(--paper);font-size:clamp(16px,2.4vh,24px);border:2px solid var(--line)}
+
+#sky{flex:1;position:relative;display:flex;flex-direction:column;justify-content:center;gap:5vh;padding:2vh 3vw}
+.row{display:flex;justify-content:space-between;align-items:flex-start;padding:1.6vh 1.6vw .8vh;border-radius:var(--radius);position:relative;gap:.4vw}
+.row-am{background:linear-gradient(90deg,var(--am),var(--noon))}
+.row-pm{background:linear-gradient(90deg,var(--eve),var(--pm));flex-direction:row-reverse}
+.turn{
+  position:absolute;right:0;top:50%;width:3vw;height:22vh;
+  border:5px dashed #9BB3D1;border-left:0;border-radius:0 999px 999px 0;transform:translateY(-50%);pointer-events:none;
+}
+.field{display:flex;flex-direction:column;align-items:center;gap:.5vh;width:var(--field);flex:0 0 auto}
+.disc{
+  width:calc(var(--field)*.76);height:calc(var(--field)*.76);border-radius:50%;background:var(--paper);
+  display:grid;place-items:center;font-size:calc(var(--field)*.36);line-height:1;border:4px solid transparent;position:relative;
+  box-shadow:0 6px 0 rgba(31,42,68,.12);
+}
+.field.cp .disc,.field.finish .disc,.field.start .disc{width:var(--field);height:var(--field);font-size:calc(var(--field)*.46)}
+.field.cp .disc{border-color:var(--sun)}
+.field.finish .disc{border-color:var(--mint)}
+.field.start .disc{border-color:var(--ink)}
+.field .n{
+  position:absolute;top:-5px;left:-5px;background:var(--ink);color:#fff;border-radius:50%;
+  width:calc(var(--field)*.27);height:calc(var(--field)*.27);display:grid;place-items:center;
+  font-size:calc(var(--field)*.15);font-weight:800;
+}
+.field .lab{font-size:clamp(12px,1.9vh,20px);font-weight:700;min-height:1.3em;text-align:center}
+.field.event .lab{color:var(--muted);font-weight:600}
+.field.here .disc{box-shadow:0 0 0 6px var(--sun),0 10px 24px rgba(31,42,68,.25)}
+.field.done .disc::after{
+  content:"✓";position:absolute;right:-8px;bottom:-8px;width:calc(var(--field)*.34);height:calc(var(--field)*.34);
+  border-radius:50%;background:var(--mint);color:#fff;display:grid;place-items:center;font-size:calc(var(--field)*.2);font-weight:900;
+}
+#token{
+  position:absolute;left:0;top:0;font-size:calc(var(--field)*.5);line-height:1;z-index:5;pointer-events:none;
+  transform:translate(-50%,-78%);transition:left .4s ease,top .4s ease;
+  filter:drop-shadow(0 6px 6px rgba(0,0,0,.25));
+}
+#token.hop{animation:hop .4s ease}
+@keyframes hop{50%{transform:translate(-50%,-78%) translateY(-18px) scale(1.14)}}
+
+.dice{display:flex;align-items:center;justify-content:space-between;padding:1.2vh 3vw 2.4vh;gap:2vw}
+.prompt{font-size:clamp(20px,3.4vh,40px);font-weight:800;margin:0}
+.pad{display:flex;gap:1.2vw}
+.die{
+  --d:clamp(52px,9vh,96px);width:var(--d);height:var(--d);background:var(--paper);border:4px solid var(--ink);
+  border-radius:20%;display:grid;place-items:center;transition:transform .12s,background .12s;
+}
+.die.pressed{transform:scale(.9);background:var(--sun)}
+.die:disabled{opacity:.3;cursor:default}
+.pips{width:72%;height:72%;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr)}
+.pips i{display:block;border-radius:50%;margin:16%}
+.pips i.on{background:var(--ink)}
+
+/* ---------- сцена (мисии и събития) ---------- */
+.overlay{position:fixed;inset:0;background:rgba(31,42,68,.55);display:grid;place-items:center;padding:3vh 3vw;z-index:20}
+.stage{
+  background:var(--paper);border-radius:36px;width:min(94vw,1500px);max-height:94vh;
+  display:flex;flex-direction:column;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.35);
+}
+.s-head{display:flex;align-items:center;gap:1.5vw;padding:2.4vh 3vw .8vh}
+.s-head .ico{font-size:clamp(36px,7vh,80px);line-height:1}
+.s-head .time{color:var(--muted);font-size:clamp(16px,2.6vh,28px);font-weight:700}
+.s-head h2{font-size:clamp(26px,4.6vh,56px)}
+.s-body{flex:1;overflow:auto;padding:1vh 3vw 2vh;font-size:clamp(20px,3.2vh,38px)}
+.s-foot{display:flex;justify-content:flex-end;gap:1vw;padding:1.2vh 3vw 2.8vh;flex-wrap:wrap}
+.btn{background:var(--ink);color:#fff;border-radius:999px;padding:1.4vh 3vw;font-size:clamp(18px,3vh,34px);font-weight:800;transition:transform .1s}
+.btn:active{transform:scale(.96)}
+.btn.ghost{background:var(--soft);color:var(--ink)}
+.btn:disabled{opacity:.35;cursor:default;transform:none}
+.lead{margin:0 0 1.5vh;max-width:36ch}
+.note{color:var(--muted);font-size:.8em;margin:.5vh 0 0}
+
+.event-card{text-align:center;padding:2vh 0 1vh}
+.event-card .big{font-size:clamp(70px,18vh,200px);line-height:1}
+.event-card h2{font-size:clamp(30px,6vh,70px);margin:1.5vh 0}
+.event-card p{font-size:clamp(22px,4vh,48px);margin:0 auto;max-width:30ch}
+
+/* мисия 1: числа */
+.clocks{display:flex;justify-content:center;gap:4vw;margin:0 0 2vh}
+.clock{background:var(--soft);border-radius:var(--radius);padding:1.2vh 2.5vw;text-align:center;font-weight:700;font-size:.8em}
+.clock b{display:block;font-size:clamp(28px,5.5vh,64px);font-variant-numeric:tabular-nums}
+.fogwrap{position:relative;padding:1vh 0}
+.slots{display:flex;gap:.8vw;justify-content:center}
+.slot{
+  width:clamp(44px,7.4vw,118px);aspect-ratio:1;border-radius:18%;background:#fff;border:4px solid var(--ink);
+  display:grid;place-items:center;font-size:clamp(26px,6vh,66px);font-weight:900;transition:filter .3s;
+}
+.slot.missing{border-style:dashed;color:var(--muted);filter:blur(2.5px);cursor:pointer}
+.slot.missing.sel{border-color:var(--sun);box-shadow:0 0 0 6px var(--sun);filter:blur(1.2px)}
+.slot.filled{filter:none;background:var(--mint);border-color:var(--mint);animation:pop .35s}
+.slot.wrong{animation:shake .4s}
+.fog{position:absolute;inset:0;pointer-events:none;border-radius:30px;transition:opacity .6s;
+  background:radial-gradient(ellipse at center,rgba(255,255,255,.15),rgba(255,255,255,.6))}
+.numpad{display:flex;flex-wrap:wrap;justify-content:center;gap:1vw;margin-top:2.5vh}
+.numpad button{width:clamp(48px,8vh,84px);aspect-ratio:1;border-radius:50%;background:var(--soft);font-size:clamp(20px,3.6vh,40px);font-weight:800;transition:transform .1s}
+.numpad button.used{opacity:.25}
+.numpad button.nope{background:var(--coral);color:#fff;transform:scale(.92)}
+.result{text-align:center;font-weight:800;color:var(--green);margin:2vh 0 0;min-height:1.3em}
+@keyframes pop{50%{transform:scale(1.18)}}
+@keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+
+/* мисия 2: чанта */
+.zoomwrap{display:flex;gap:3vw;align-items:center;justify-content:center;flex-wrap:wrap}
+.zoombox{width:min(42vw,52vh);aspect-ratio:1;border-radius:30px;overflow:hidden;background:var(--soft);border:4px solid var(--ink);position:relative;flex:0 0 auto}
+.zoombox .pic{position:absolute;inset:0;display:grid;place-items:center;font-size:min(28vw,34vh);line-height:1;transition:transform .5s ease;user-select:none}
+.zoombox img.pic{object-fit:cover;width:100%;height:100%}
+.zoom-info{flex:1;min-width:28vw}
+.zoom-info .name{font-size:clamp(28px,5.5vh,64px);font-weight:900;margin:1vh 0;min-height:1.2em}
+.zoom-info .why{color:var(--muted);min-height:1.3em}
+.dots{display:flex;gap:.6vw;margin-top:2vh}
+.dots i{width:1.6vh;height:1.6vh;border-radius:50%;background:var(--line)}
+.dots i.on{background:var(--ink)}
+
+/* мисия 3: памет */
+.memgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:1.4vw;max-width:min(88vw,92vh);margin:0 auto}
+.card{aspect-ratio:1;perspective:900px;cursor:pointer}
+.card .in{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .45s}
+.card.up .in{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;border-radius:22px;display:grid;place-items:center;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.face.back{background:var(--ink);color:#fff;font-size:clamp(36px,8vh,90px);font-weight:900}
+.face.back b{position:absolute;top:1vh;left:1vw;font-size:clamp(16px,3vh,32px);color:var(--sun)}
+.face.front{background:#fff;border:4px solid var(--ink);transform:rotateY(180deg);font-size:clamp(44px,11vh,120px);line-height:1}
+.card.ok .face.front{border-color:var(--mint);box-shadow:0 0 0 6px var(--mint)}
+.memtop{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5vh;gap:2vw}
+.counter{color:var(--muted);font-weight:700;font-size:.8em;white-space:nowrap}
+.legend{list-style:none;padding:0;margin:2vh 0 0;display:grid;grid-template-columns:repeat(2,1fr);gap:1vh 3vw;font-size:.85em}
+.legend li{display:flex;align-items:center;gap:1vw}
+.legend span{font-size:1.6em}
+
+/* мисия 4: телефон */
+.steps{margin:0;padding-left:1.2em;max-width:40ch}
+.steps li{margin:.6vh 0}
+.phonewrap{display:flex;gap:3vw;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.bigtime{font-size:clamp(60px,15vh,170px);font-weight:900;font-variant-numeric:tabular-nums;line-height:1;text-align:center;flex:1}
+.bigtime.over{color:var(--red)}
+.secret{margin-top:2vh;background:var(--noon);border-radius:var(--radius);padding:2vh 2.5vw;font-size:clamp(26px,5vh,60px);font-weight:900;text-align:center}
+
+/* мисия 5: вярно или грешно */
+.stmt{font-size:clamp(30px,6vh,70px);font-weight:800;text-align:center;margin:3vh auto;max-width:28ch;min-height:2.4em}
+.verdict{font-size:clamp(40px,9vh,110px);font-weight:900;text-align:center;min-height:1.1em;line-height:1.1}
+.verdict.yes{color:var(--green)}
+.verdict.no{color:var(--red)}
+.tf-why{text-align:center;color:var(--muted);min-height:1.4em;margin:1vh auto 0;max-width:40ch}
+.progress{text-align:center;color:var(--muted);font-size:.7em;font-weight:700}
+.tf-rule{display:flex;justify-content:center;gap:3vw;font-weight:800}
+.tf-rule span{background:var(--soft);border-radius:999px;padding:.6vh 2vw}
+
+/* финал */
+.finish{text-align:center;padding:1vh 0}
+.finish .scene{font-size:clamp(70px,18vh,200px);line-height:1}
+.finish .fam{font-size:clamp(40px,9vh,100px);line-height:1;margin-top:-1vh}
+.finish h2{font-size:clamp(30px,6vh,70px);margin:1.5vh 0}
+.finish p{font-size:clamp(22px,4vh,48px);margin:0 auto;max-width:30ch}
+.recap{margin:2vh auto 0;max-width:46ch;text-align:left}
+.recap .q{display:flex;align-items:center;justify-content:space-between;gap:2vw;padding:1vh 0;border-top:3px solid var(--line);font-size:.9em}
+.recap .q:last-child{border-bottom:3px solid var(--line)}
+.recap .a{color:var(--green);font-weight:800}
+.recap button{background:var(--soft);border-radius:999px;padding:.6vh 1.6vw;font-weight:700;font-size:.8em;white-space:nowrap}
+.confetti{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:25}
+.confetti i{position:absolute;top:-3vh;width:1.2vh;height:2vh;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
+
+/* настройки на водещия */
+dialog{border:0;border-radius:24px;padding:3vh 3vw;font-size:clamp(16px,2.4vh,24px);width:min(92vw,760px);color:var(--ink)}
+dialog::backdrop{background:rgba(31,42,68,.5)}
+dialog h2{font-size:1.4em;margin-bottom:1.5vh}
+dialog label{display:block;margin:1vh 0 .3vh;font-weight:700}
+dialog input{font:inherit;width:100%;padding:.8vh 1vw;border:3px solid var(--line);border-radius:12px}
+dialog .grid{display:grid;grid-template-columns:1fr 1fr;gap:1vw 2vw}
+dialog .list{margin:1.5vh 0;padding:0;list-style:none}
+dialog .list li{display:flex;justify-content:space-between;align-items:center;gap:1vw;padding:.6vh 0;border-top:2px solid var(--line)}
+dialog .btn{font-size:1em;padding:.9vh 2vw}
+dialog .actions{display:flex;gap:1vw;flex-wrap:wrap;margin-top:2vh}
+dialog .keys{color:var(--muted);font-size:.8em;margin-top:2vh}
+
+@media (prefers-reduced-motion:reduce){
+  *{transition-duration:.01ms !important;animation-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+
+<section id="title">
+  <div>
+    <div class="sun">☀️</div>
+    <h1>Един мой работен ден</h1>
+    <div class="with">с <span data-presenter></span></div>
+    <p class="job" id="title-job"></p>
+    <div class="cap">🎲 Капитан на зара: <span data-captain></span></div>
+    <div><button class="btn" id="start-btn">Започваме!</button></div>
+  </div>
+</section>
+
+<main id="board">
+  <header class="top">
+    <h1>Един мой работен ден</h1>
+    <div class="captain">🎲 Капитан: <span data-captain></span></div>
+    <div class="ops">
+      <span class="timer" id="timer" title="Изминало време">0:00</span>
+      <button id="full-btn" title="Цял екран (F)">⛶</button>
+      <button id="settings-btn" title="Настройки на водещия">⚙</button>
+    </div>
+  </header>
+
+  <section id="sky">
+    <div class="row row-am" id="row-am"></div>
+    <div class="turn"></div>
+    <div class="row row-pm" id="row-pm"></div>
+    <div id="token">👨‍💻</div>
+  </section>
+
+  <footer class="dice">
+    <p class="prompt" id="prompt"></p>
+    <div class="pad" id="pad"></div>
+  </footer>
+</main>
+
+<div id="overlay" class="overlay hidden"><div id="stage" class="stage"></div></div>
+
+<dialog id="settings">
+  <h2>Настройки на водещия</h2>
+  <div class="grid">
+    <div><label for="in-presenter">Твоето име</label><input id="in-presenter"></div>
+    <div><label for="in-captain">Капитан на зара (детето)</label><input id="in-captain"></div>
+  </div>
+  <ul class="list" id="mission-list"></ul>
+  <div class="actions">
+    <button class="btn ghost" id="s-teleport">Телепорт до следващата мисия</button>
+    <button class="btn ghost" id="s-full">Цял екран</button>
+    <button class="btn ghost" id="s-reset">Започни отначало</button>
+    <button class="btn" id="s-close">Готово</button>
+  </div>
+  <p class="keys">Клавиши: 1–6 зар, Enter продължи, Esc обратно към пътеката, T телепорт, F цял екран. „Отвори“ до мисия я показва за проба, без да мести фигурката.</p>
+</dialog>
+
+<script>
+/* =========================================================
+   НАСТРОЙКИ — промени каквото искаш тук
+   ========================================================= */
+const CONFIG = {
+  presenter: "Любомир Филипов",                    // твоето име
+  captain: "Изабел Борисова",                          // името на детето
+  job: "Програмист съм и уча компютрите да мислят.",
+  familyEmoji: "👨‍👩‍👧",                      // семейството на финала
+
+  // Мисия 1 — обаждане от другия край на света
+  hereCity: "Тук",
+  hereHour: "07:00",
+  farCity: "Сидни",
+  farHour: "18:00",
+  missingNumbers: [3, 6, 8, 10],               // кои числа от 1 до 10 липсват
+
+  // Мисия 2 — какво има в чантата ми (emoji или img: "снимка.jpg")
+  bag: [
+    { emoji: "💻", name: "Лаптоп", why: "На него пиша програмите.", focus: "38% 38%" },
+    { emoji: "🎧", name: "Слушалки", why: "За срещите с колегите от цяла Европа.", focus: "60% 42%" },
+    { emoji: "☕", name: "Чаша кафе", why: "Без нея сутрин няма програмиране.", focus: "48% 62%" },
+    { emoji: "📓", name: "Тефтер и химикалка", why: "Тук рисувам идеите, преди да ги напиша на компютъра.", focus: "42% 50%" },
+  ],
+
+  // Мисия 3 — екипна памет (4 двойки)
+  memory: [
+    { emoji: "💻", name: "Компютър — на него работя" },
+    { emoji: "🤖", name: "Робот — изкуственият интелект, който уча" },
+    { emoji: "🐛", name: "Бъг — грешка в програмата, която търся" },
+    { emoji: "💡", name: "Идея — така започва всяка програма" },
+  ],
+
+  // Мисия 4 — развален телефон
+  phrase: "Роботът пие кафе и пише програма за котки.",
+  phoneSeconds: 120,
+
+  // Мисия 5 — вярно или грешно
+  trueFalse: [
+    { t: "Компютърът ме разбира, ако му пиша на специален език.", a: true,  why: "Този език се казва код. Аз пиша код всеки ден." },
+    { t: "Работя само с хора от България.", a: false, why: "Колегите ми са в Италия, Германия, Франция — из цяла Европа." },
+    { t: "Роботите, които правя, имат ръце и крака.", a: false, why: "Моят изкуствен интелект живее в компютъра. Няма ръце, но мисли и помага." },
+    { t: "Понякога компютърът греши и аз трябва да намеря грешката.", a: true, why: "Грешката се казва „бъг“ 🐛 — като малка буболечка." },
+    { t: "Изкуственият интелект може да се научи да познава котки на снимки.", a: true, why: "Показваме му хиляди снимки и той се учи — както вие в училище." },
+    { t: "Пия по десет кафета на ден.", a: false, why: "Само две! ☕☕" },
+  ],
+
+  // Финал — какво научихме
+  recap: [
+    { q: "С кого говоря рано сутрин?", a: "С колега от другия край на света, където е вечер." },
+    { q: "Как се казва грешката в програмата?", a: "Бъг 🐛" },
+    { q: "Какво прави един програмист?", a: "Пише код и учи компютрите да мислят." },
+  ],
+
+  // Събития по пътеката (полетата между мисиите)
+  events: {
+    1:  { icon: "☕", title: "Кафе!", text: "Всички се протягаме като току-що събудени." },
+    2:  { icon: "📡", title: "Падна интернетът!", text: "Замръзваме за 5 секунди… и „рестарт“!" },
+    4:  { icon: "🍝", title: "Звъни колега от Италия", text: "Всички казваме „Ciao!“ шепнешком." },
+    5:  { icon: "🏃", title: "Шефът иска нещо спешно", text: "Три клякания и обратно на място." },
+    7:  { icon: "⚡", title: "Свърших работата рано", text: "Капитанът хвърля зара още веднъж!" },
+    8:  { icon: "🐛", title: "Бъг в програмата!", text: "Всички се почесваме по главата и казваме „Хммм…“" },
+    10: { icon: "🥪", title: "Обедна почивка", text: "Кажи на съседа по чин какво обичаш за обяд." },
+    11: { icon: "🤖", title: "Роботът иска да се научи", text: "Повторете след капитана: „Здравей, робот!“" },
+    13: { icon: "🌍", title: "Среща с колеги от пет държави", text: "Hello! Ciao! Hola! Bonjour! Hallo! — шепнешком." },
+    14: { icon: "🚀", title: "Проектът е готов!", text: "Броим 3, 2, 1 и скачаме като ракета." },
+  },
+};
+
+/* =========================================================
+   ИГРАТА
+   ========================================================= */
+const MISSIONS = [
+  { n: 3,  time: "07:00", icon: "📞", title: "Обаждане от другия край на света", run: missionNumbers },
+  { n: 6,  time: "09:00", icon: "🎒", title: "Какво има в чантата ми?",          run: missionBag },
+  { n: 9,  time: "11:00", icon: "🧠", title: "Екипна памет",                      run: missionMemory },
+  { n: 12, time: "13:00", icon: "🗣️", title: "Развален телефон",                  run: missionPhone },
+  { n: 15, time: "15:00", icon: "✅", title: "Вярно или грешно",                  run: missionTrueFalse },
+];
+const FINISH = 16;
+const STORE = "raboten-den-v1";
+
+const $ = (s, root = document) => root.querySelector(s);
+const $$ = (s, root = document) => Array.from(root.querySelectorAll(s));
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const missionAt = n => MISSIONS.findIndex(m => m.n === n);
+const fieldEl = n => $(`.field[data-n="${n}"]`);
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function fmt(s) { return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; }
+
+let state = { pos: 0, done: [], started: null, captain: CONFIG.captain, presenter: CONFIG.presenter };
+let busy = false;
+let keyHandler = null;      // мисиите могат да прихващат клавиши
+let stageCleanup = null;    // спира таймери при затваряне на сцената
+
+const overlay = $("#overlay"), st = $("#stage"), token = $("#token"), settings = $("#settings");
+
+function save() { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} }
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORE) || "null");
+    if (s && typeof s.pos === "number") state = Object.assign(state, s);
+  } catch (e) {}
+}
+
+/* ---------- пътека ---------- */
+function buildBoard() {
+  const am = $("#row-am"), pm = $("#row-pm");
+  for (let n = 0; n <= FINISH; n++) {
+    const mi = missionAt(n);
+    const f = el("div", "field");
+    f.dataset.n = n;
+    let icon, lab = "";
+    if (n === 0)            { f.classList.add("start");  icon = "⏰"; lab = "Старт"; }
+    else if (n === FINISH)  { f.classList.add("finish"); icon = "🏠"; lab = "18:00"; }
+    else if (mi >= 0)       { f.classList.add("cp");     icon = MISSIONS[mi].icon; lab = MISSIONS[mi].time; }
+    else                    { f.classList.add("event");  icon = CONFIG.events[n].icon; }
+    f.innerHTML = `<div class="disc">${n ? `<span class="n">${n}</span>` : ""}${icon}</div><div class="lab">${lab}</div>`;
+    (n <= 8 ? am : pm).appendChild(f);
+    if (mi >= 0) f.addEventListener("dblclick", () => openMission(mi, n !== state.pos));
+  }
+  const pad = $("#pad");
+  const pips = { 1: [4], 2: [2, 6], 3: [2, 4, 6], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+  for (let n = 1; n <= 6; n++) {
+    const b = el("button", "die");
+    b.setAttribute("aria-label", `Падна се ${n}`);
+    b.dataset.n = n;
+    const p = el("span", "pips");
+    for (let i = 0; i < 9; i++) p.appendChild(el("i", pips[n].includes(i) ? "on" : ""));
+    b.appendChild(p);
+    b.addEventListener("click", () => roll(n));
+    pad.appendChild(b);
+  }
+}
+
+function renderNames() {
+  $$("[data-captain]").forEach(x => x.textContent = state.captain);
+  $$("[data-presenter]").forEach(x => x.textContent = state.presenter);
+  $("#title-job").textContent = CONFIG.job;
+}
+function renderDone() {
+  MISSIONS.forEach((m, i) => fieldEl(m.n).classList.toggle("done", state.done.includes(i)));
+}
+function placeToken(animate) {
+  const f = fieldEl(state.pos), d = $(".disc", f), sky = $("#sky");
+  const r = d.getBoundingClientRect(), s = sky.getBoundingClientRect();
+  token.style.left = (r.left - s.left + r.width / 2) + "px";
+  token.style.top = (r.top - s.top + r.height * 0.22) + "px";
+  if (animate) { token.classList.remove("hop"); void token.offsetWidth; token.classList.add("hop"); }
+  $$(".field.here").forEach(x => x.classList.remove("here"));
+  f.classList.add("here");
+}
+function setPrompt(text) {
+  const finished = state.pos >= FINISH;
+  $("#prompt").textContent = text || (finished ? "Благодаря, че играхте с мен!" : `${state.captain}, хвърли зара!`);
+  $$(".die").forEach(b => b.disabled = finished || busy);
+}
+function pressDie(n) {
+  const b = $(`.die[data-n="${n}"]`);
+  b.classList.add("pressed");
+  setTimeout(() => b.classList.remove("pressed"), 500);
+}
+
+/* ---------- ход ---------- */
+async function roll(n) {
+  if (busy || state.pos >= FINISH) return;
+  busy = true;
+  if (!state.started) state.started = Date.now();
+  pressDie(n);
+  setPrompt("Напред…");
+  let p = state.pos;
+  for (let i = 0; i < n; i++) {
+    p++;
+    state.pos = p;
+    placeToken(true);
+    save();
+    await wait(430);
+    const mi = missionAt(p);
+    if (p === FINISH || (mi >= 0 && !state.done.includes(mi))) break;   // на контролна точка винаги се спира
+  }
+  await wait(250);
+  busy = false;
+  arrive(p);
+}
+async function teleport() {
+  if (busy || state.pos >= FINISH) return;
+  const next = MISSIONS.find(m => m.n > state.pos && !state.done.includes(missionAt(m.n)));
+  const target = next ? next.n : FINISH;
+  busy = true;
+  if (!state.started) state.started = Date.now();
+  state.pos = target;
+  placeToken(true);
+  save();
+  await wait(500);
+  busy = false;
+  arrive(target);
+}
+function arrive(p) {
+  const mi = missionAt(p);
+  setPrompt();
+  if (p === FINISH) showFinish();
+  else if (mi >= 0 && !state.done.includes(mi)) openMission(mi);
+  else if (CONFIG.events[p]) showEvent(p);
+  else setPrompt();
+}
+
+/* ---------- сцена ---------- */
+function missionHead(m) {
+  return `<div class="s-head"><span class="ico">${m.icon}</span><div><div class="time">${m.time}</div><h2>${m.title}</h2></div></div>`;
+}
+function openStage({ head, body, buttons }) {
+  overlay.classList.remove("hidden");
+  st.innerHTML = (head ? missionHead(head) : "") + `<div class="s-body">${body}</div><div class="s-foot"></div>`;
+  const foot = $(".s-foot", st);
+  buttons.forEach(b => {
+    const x = el("button", "btn " + (b.cls || ""), b.label);
+    if (b.id) x.id = b.id;
+    if (b.disabled) x.disabled = true;
+    x.addEventListener("click", b.on);
+    foot.appendChild(x);
+  });
+  return st;
+}
+function closeStage() {
+  overlay.classList.add("hidden");
+  st.innerHTML = "";
+  keyHandler = null;
+  if (stageCleanup) { stageCleanup(); stageCleanup = null; }
+  $$(".confetti").forEach(c => c.remove());
+  setPrompt();
+}
+function openMission(idx, rehearsal = false) {
+  const m = MISSIONS[idx];
+  const done = () => {
+    if (!rehearsal && !state.done.includes(idx)) { state.done.push(idx); save(); renderDone(); }
+    closeStage();
+  };
+  m.run(m, done);
+}
+function showEvent(n) {
+  const ev = CONFIG.events[n];
+  openStage({
+    body: `<div class="event-card"><div class="big">${ev.icon}</div><h2>${ev.title}</h2><p>${ev.text}</p></div>`,
+    buttons: [{ label: "Продължаваме", cls: "primary", on: closeStage }],
+  });
+}
+
+/* ---------- мисия 1: липсващите числа ---------- */
+function missionNumbers(m, done) {
+  const missing = new Set(CONFIG.missingNumbers);
+  let left = missing.size, sel = null;
+  const s = openStage({
+    head: m,
+    body: `
+      <p class="lead">Тук е рано сутрин, а при колегата ми е вечер. Още съм сънен и задачите се размазаха. Кои числа липсват?</p>
+      <div class="clocks">
+        <div class="clock">☀️ ${CONFIG.hereCity}<b>${CONFIG.hereHour}</b></div>
+        <div class="clock">🌙 ${CONFIG.farCity}<b>${CONFIG.farHour}</b></div>
+      </div>
+      <div class="fogwrap"><div class="slots" id="slots"></div><div class="fog" id="fog"></div></div>
+      <div class="numpad" id="numpad"></div>
+      <p class="result" id="numres"></p>`,
+    buttons: [{ label: "Мисията е изпълнена", cls: "primary", id: "numdone", disabled: true, on: done }],
+  });
+  const slots = $("#slots", s), pad = $("#numpad", s), fog = $("#fog", s);
+  for (let i = 1; i <= 10; i++) {
+    const d = el("div", "slot", missing.has(i) ? "?" : String(i));
+    d.dataset.v = i;
+    if (missing.has(i)) { d.classList.add("missing"); d.addEventListener("click", () => select(d)); }
+    slots.appendChild(d);
+  }
+  for (let i = 1; i <= 10; i++) {
+    const b = el("button", "", String(i));
+    b.dataset.v = i;
+    b.addEventListener("click", () => answer(i));
+    pad.appendChild(b);
+  }
+  function select(d) {
+    $$(".slot.sel", slots).forEach(x => x.classList.remove("sel"));
+    d.classList.add("sel");
+    sel = d;
+  }
+  function answer(v) {
+    if (!sel) return;
+    const b = $(`button[data-v="${v}"]`, pad);
+    if (+sel.dataset.v === v) {
+      sel.textContent = String(v);
+      sel.classList.remove("missing", "sel");
+      sel.classList.add("filled");
+      b.classList.add("used");
+      left--;
+      fog.style.opacity = left / missing.size;
+      sel = null;
+      const nx = $(".slot.missing", slots);
+      if (nx) select(nx);
+      if (left === 0) {
+        $("#numres", s).textContent = `Мъглата се вдигна! Колегата от ${CONFIG.farCity} казва: „Благодаря!“`;
+        $("#numdone", s).disabled = false;
+      }
+    } else {
+      sel.classList.remove("wrong"); void sel.offsetWidth; sel.classList.add("wrong");
+      b.classList.add("nope"); setTimeout(() => b.classList.remove("nope"), 400);
+    }
+  }
+  select($(".slot.missing", slots));
+  keyHandler = e => {
+    const k = /^(?:Digit|Numpad)(\d)$/.exec(e.code);
+    if (!k) return false;
+    answer(k[1] === "0" ? 10 : +k[1]);
+    return true;
+  };
+}
+
+/* ---------- мисия 2: какво има в чантата ми ---------- */
+function missionBag(m, done) {
+  const items = CONFIG.bag, zooms = [3.2, 2, 1.4, 1];
+  let idx = 0, z = 0, revealed = false;
+  const s = openStage({
+    head: m,
+    body: `
+      <div class="zoomwrap">
+        <div class="zoombox" id="zb"></div>
+        <div class="zoom-info">
+          <p class="lead">Какво е това? Гледайте внимателно — картинката бавно се отдалечава.</p>
+          <div class="name" id="zname"></div>
+          <div class="why" id="zwhy"></div>
+          <div class="dots" id="zdots"></div>
+        </div>
+      </div>`,
+    buttons: [
+      { label: "Отдалечи", cls: "ghost", id: "zout", on: () => { if (z < zooms.length - 1) { z++; apply(); } } },
+      { label: "Покажи какво е", cls: "primary", id: "znext", on: next },
+    ],
+  });
+  const zb = $("#zb", s), zname = $("#zname", s), zwhy = $("#zwhy", s), zdots = $("#zdots", s), zout = $("#zout", s), znext = $("#znext", s);
+  function render() {
+    const it = items[idx];
+    zb.innerHTML = "";
+    let pic;
+    if (it.img) { pic = el("img", "pic"); pic.src = it.img; pic.alt = ""; }
+    else pic = el("div", "pic", it.emoji);
+    pic.style.transformOrigin = it.focus || "50% 50%";
+    pic.style.transition = "none";
+    zb.appendChild(pic);
+    z = 0; revealed = false;
+    apply();
+    requestAnimationFrame(() => { pic.style.transition = ""; });
+    zname.textContent = ""; zwhy.textContent = "";
+    zdots.innerHTML = items.map((_, i) => `<i class="${i <= idx ? "on" : ""}"></i>`).join("");
+    znext.textContent = "Покажи какво е";
+  }
+  function apply() {
+    $(".pic", zb).style.transform = `scale(${zooms[z]})`;
+    zout.disabled = z >= zooms.length - 1;
+  }
+  function next() {
+    const it = items[idx];
+    if (!revealed) {
+      z = zooms.length - 1; apply();
+      zname.textContent = it.name; zwhy.textContent = it.why;
+      revealed = true;
+      znext.textContent = idx < items.length - 1 ? "Следващ предмет" : "Мисията е изпълнена";
+    } else if (idx < items.length - 1) { idx++; render(); }
+    else done();
+  }
+  render();
+}
+
+/* ---------- мисия 3: екипна памет ---------- */
+function missionMemory(m, done) {
+  const pairs = CONFIG.memory;
+  const cards = shuffle(pairs.flatMap((p, i) => [{ i, e: p.emoji }, { i, e: p.emoji }]));
+  let open = [], lock = false, matched = 0, moves = 0;
+  const s = openStage({
+    head: m,
+    body: `
+      <div class="memtop"><p class="lead" style="margin:0">Намерете двойките. Кажете номерата на двете карти, които да обърнем.</p><span class="counter" id="moves">0 опита</span></div>
+      <div class="memgrid" id="grid"></div>
+      <ul class="legend hidden" id="legend"></ul>`,
+    buttons: [{ label: "Мисията е изпълнена", cls: "primary", id: "memdone", disabled: true, on: done }],
+  });
+  const grid = $("#grid", s), legend = $("#legend", s);
+  cards.forEach((c, k) => {
+    const card = el("div", "card", `<div class="in"><div class="face back"><b>${k + 1}</b>?</div><div class="face front">${c.e}</div></div>`);
+    card.dataset.i = c.i;
+    card.addEventListener("click", () => flip(card));
+    grid.appendChild(card);
+  });
+  function flip(card) {
+    if (lock || card.classList.contains("up")) return;
+    card.classList.add("up");
+    open.push(card);
+    if (open.length < 2) return;
+    moves++;
+    $("#moves", s).textContent = `${moves} ${moves === 1 ? "опит" : "опита"}`;
+    lock = true;
+    const [a, b] = open;
+    if (a.dataset.i === b.dataset.i) {
+      setTimeout(() => {
+        a.classList.add("ok"); b.classList.add("ok");
+        open = []; lock = false; matched++;
+        if (matched === pairs.length) {
+          legend.innerHTML = pairs.map(p => `<li><span>${p.emoji}</span>${p.name}</li>`).join("");
+          legend.classList.remove("hidden");
+          $("#memdone", s).disabled = false;
+        }
+      }, 350);
+    } else {
+      setTimeout(() => { a.classList.remove("up"); b.classList.remove("up"); open = []; lock = false; }, 900);
+    }
+  }
+}
+
+/* ---------- мисия 4: развален телефон ---------- */
+function missionPhone(m, done) {
+  let t = CONFIG.phoneSeconds, iv = null;
+  const s = openStage({
+    head: m,
+    body: `
+      <div class="phonewrap">
+        <ol class="steps">
+          <li>Пет деца се нареждат в редица.</li>
+          <li>Шепна изречението на първото.</li>
+          <li>Всеки го предава шепнешком на следващия.</li>
+          <li>Последният го казва на глас!</li>
+        </ol>
+        <div class="bigtime" id="bigtime">${fmt(t)}</div>
+      </div>
+      <p class="note">В работата си говоря с колеги от различни държави — затова е важно да се разбираме ясно.</p>
+      <div class="secret hidden" id="secret">${CONFIG.phrase}</div>`,
+    buttons: [
+      { label: "Старт", cls: "ghost", id: "ph-start", on: toggle },
+      { label: "Покажи изречението", cls: "ghost", id: "ph-show", on: () => { $("#secret", s).classList.remove("hidden"); $("#ph-show", s).disabled = true; } },
+      { label: "Мисията е изпълнена", cls: "primary", on: () => { stop(); done(); } },
+    ],
+  });
+  const big = $("#bigtime", s), startBtn = $("#ph-start", s);
+  function tick() {
+    t--;
+    big.textContent = fmt(Math.max(t, 0));
+    if (t <= 0) { stop(); big.textContent = "Край!"; big.classList.add("over"); startBtn.disabled = true; }
+  }
+  function stop() { if (iv) { clearInterval(iv); iv = null; } startBtn.textContent = "Старт"; }
+  function toggle() { if (iv) stop(); else { iv = setInterval(tick, 1000); startBtn.textContent = "Пауза"; } }
+  stageCleanup = stop;
+}
+
+/* ---------- мисия 5: вярно или грешно ---------- */
+function missionTrueFalse(m, done) {
+  const list = CONFIG.trueFalse;
+  let i = 0, shown = false;
+  const s = openStage({
+    head: m,
+    body: `
+      <div class="tf-rule"><span>Вярно — ставаме ⬆️</span><span>Грешно — сядаме ⬇️</span></div>
+      <div class="stmt" id="stmt"></div>
+      <div class="verdict" id="verdict"></div>
+      <p class="tf-why" id="why"></p>
+      <p class="progress" id="tfp"></p>`,
+    buttons: [{ label: "Покажи отговора", cls: "primary", id: "tfbtn", on: step }],
+  });
+  const stmt = $("#stmt", s), verdict = $("#verdict", s), why = $("#why", s), prog = $("#tfp", s), btn = $("#tfbtn", s);
+  function render() {
+    stmt.textContent = list[i].t;
+    verdict.textContent = ""; verdict.className = "verdict";
+    why.textContent = "";
+    prog.textContent = `${i + 1} от ${list.length}`;
+    btn.textContent = "Покажи отговора";
+  }
+  function step() {
+    const it = list[i];
+    if (!shown) {
+      verdict.textContent = it.a ? "✅ Вярно!" : "❌ Грешно!";
+      verdict.classList.add(it.a ? "yes" : "no");
+      why.textContent = it.why;
+      shown = true;
+      btn.textContent = i < list.length - 1 ? "Следващото" : "Мисията е изпълнена";
+    } else if (i < list.length - 1) { i++; shown = false; render(); }
+    else done();
+  }
+  render();
+}
+
+/* ---------- финал ---------- */
+function showFinish() {
+  const s = openStage({
+    body: `
+      <div class="finish">
+        <div class="scene">🏠</div>
+        <div class="fam">${CONFIG.familyEmoji}</div>
+        <h2>18:00 — Край на работния ден!</h2>
+        <p>Прибирам се вкъщи при ${state.captain} и семейството ни. Затова работя.</p>
+        <div class="recap hidden" id="recap">${CONFIG.recap.map((r, i) => `<div class="q"><span>${r.q}</span><button data-i="${i}">Отговор</button></div>`).join("")}</div>
+      </div>`,
+    buttons: [
+      { label: "Какво научихме?", cls: "ghost", id: "recap-btn", on: () => { $("#recap", s).classList.remove("hidden"); $("#recap-btn", s).disabled = true; } },
+      { label: "Благодаря!", cls: "primary", on: closeStage },
+    ],
+  });
+  $$("#recap button", s).forEach(b => b.addEventListener("click", () => {
+    const r = CONFIG.recap[+b.dataset.i];
+    b.replaceWith(el("span", "a", r.a));
+  }));
+  const c = el("div", "confetti");
+  const colors = ["#FFD23F", "#3DD598", "#FF6B6B", "#CDBDF2", "#1F2A44", "#CFEBFF"];
+  for (let i = 0; i < 90; i++) {
+    const p = el("i");
+    p.style.left = Math.random() * 100 + "vw";
+    p.style.background = colors[i % colors.length];
+    p.style.animationDuration = 2.5 + Math.random() * 2.5 + "s";
+    p.style.animationDelay = Math.random() * 1.5 + "s";
+    c.appendChild(p);
+  }
+  document.body.appendChild(c);
+}
+
+/* ---------- настройки, клавиши, старт ---------- */
+function toggleFull() {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
+}
+function resetGame() {
+  if (!confirm("Да започнем отначало? Прогресът ще се изтрие.")) return;
+  state = { pos: 0, done: [], started: null, captain: state.captain, presenter: state.presenter };
+  save(); renderDone(); placeToken(false); setPrompt();
+  $("#timer").textContent = "0:00"; $("#timer").classList.remove("late");
+  settings.close();
+}
+function bindSettings() {
+  const ip = $("#in-presenter"), ic = $("#in-captain");
+  $("#settings-btn").addEventListener("click", () => {
+    ip.value = state.presenter; ic.value = state.captain;
+    settings.showModal();
+  });
+  ip.addEventListener("input", () => { state.presenter = ip.value.trim() || CONFIG.presenter; save(); renderNames(); });
+  ic.addEventListener("input", () => { state.captain = ic.value.trim() || CONFIG.captain; save(); renderNames(); setPrompt(); });
+  const list = $("#mission-list");
+  MISSIONS.forEach((m, i) => {
+    const li = el("li", "", `<span>${m.icon} ${m.time} ${m.title}</span>`);
+    const b = el("button", "btn ghost", "Отвори");
+    b.addEventListener("click", () => { settings.close(); openMission(i, m.n !== state.pos); });
+    li.appendChild(b);
+    list.appendChild(li);
+  });
+  $("#s-teleport").addEventListener("click", () => { settings.close(); teleport(); });
+  $("#s-full").addEventListener("click", () => { settings.close(); toggleFull(); });
+  $("#s-reset").addEventListener("click", resetGame);
+  $("#s-close").addEventListener("click", () => settings.close());
+  $("#full-btn").addEventListener("click", toggleFull);
+}
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" || settings.open) return;
+  const titleOpen = !$("#title").classList.contains("hidden");
+  if (titleOpen) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#start-btn").click(); }
+    return;
+  }
+  if (!overlay.classList.contains("hidden")) {
+    if (keyHandler && keyHandler(e)) { e.preventDefault(); return; }
+    if (e.key === "Enter" || e.key === " ") {
+      const b = $(".btn.primary:not(:disabled)", st);
+      if (b) { e.preventDefault(); b.click(); }
+    } else if (e.key === "Escape") closeStage();
+    return;
+  }
+  const d = /^(?:Digit|Numpad)([1-6])$/.exec(e.code);
+  if (d) roll(+d[1]);
+  else if (e.code === "KeyT") teleport();
+  else if (e.code === "KeyF") toggleFull();
+});
+setInterval(() => {
+  if (!state.started) return;
+  const sec = Math.floor((Date.now() - state.started) / 1000);
+  const t = $("#timer");
+  t.textContent = fmt(sec);
+  t.classList.toggle("late", sec >= 24 * 60);
+}, 1000);
+window.addEventListener("resize", () => placeToken(false));
+
+load();
+buildBoard();
+renderNames();
+renderDone();
+bindSettings();
+setPrompt();
+$("#start-btn").addEventListener("click", () => { $("#title").classList.add("hidden"); placeToken(false); });
+if (state.pos > 0 || state.done.length) $("#title").classList.add("hidden");
+requestAnimationFrame(() => placeToken(false));
+</script>
+</body>
+</html>
